@@ -1,5 +1,6 @@
 from datetime import datetime
 import pandas as pd
+import numpy as np
 from numpy import inf, log
 
 
@@ -137,12 +138,14 @@ def Stability(dfsrc, another, order):
         dfsrc = dfsrc[dfsrc['开票日期'] < datetime(2020, 2, 1)]
         suffix += order
 
+    stability = pd.DataFrame(np.random.rand(123, 1), columns=['kurt'],
+                             index=['E'+str(i+1) for i in range(123)])
     # 合作伙伴稳定性: 公司与各单位的合作次数峰度的加权均值
     focus = dfsrc[dfsrc['发票状态'] == '有效发票']
     partner_kurt = focus.groupby(['企业代号', another + '单位代号'], sort=False).apply(kkurt)
     partner_cnt = focus.groupby(['企业代号', another + '单位代号'], sort=False).agg({'价税合计': 'count'})
     partner_kurt['kurt'] = partner_cnt['价税合计'] * partner_kurt['价税合计']
-    stability = partner_kurt.groupby(['企业代号'], sort=False).agg({'kurt': 'sum'})
+    stability['kurt'] = partner_kurt.groupby(['企业代号'], sort=False)['kurt'].sum()
     all_cnt = focus.groupby(['企业代号'], sort=False).agg({'价税合计': 'count'})
     stability['partner_kurt' + suffix] = stability['kurt'] / all_cnt['价税合计']
     stability.fillna(-1.2, inplace=True)
@@ -205,8 +208,9 @@ def get_WOE():
     # 连接
     df = pd.merge(df, WOEencoding.rename('type_WOE'), how='left', on='企业种类')
     df['type_WOE'].to_csv('WOEResult.csv')
-    df['type_WOE'].replace(float('-inf'), -2, inplace=True)
-    return pd.Series(df['type_WOE'])
+    df['type_WOE'].replace(float('-inf'), -0.5, inplace=True)
+    t = pd.Series(df['type_WOE'].values, index=['E'+str(i+1) for i in range(123)])
+    return t
 
 
 def perprocess1(datapath, problem):
@@ -237,19 +241,19 @@ def perprocess1(datapath, problem):
     stab2 = Stability(df2.copy(), '购方', '_year')
     stab = pd.concat([stab1, stab2], axis=1)
     attr = pd.concat([attr, stab], axis=1)
-    attr.fillna(0, inplace=True)
     print("ok")
     # 信用评级
     if problem != 2:
         attr['credit_score'] = Credit()
     # 输出
     print("ok")
-    # 这里还是不对，我没明白
     attr['type_WOE'] = get_WOE()
-    attr.reset_index()
-    attr.rename({'企业代号': 'id'}, axis=1)
+    attr.index.name = 'id'
+    # 这里的attr没有result列，将在标准化时添加
     attr.to_csv('./data/attr.csv')
 
 
 if __name__ == "__main__":
-    perprocess1('./data/file1.xlsx', 1) # 1代表问题1
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+    perprocess1('./data/file1.xlsx', 1)  # 1代表问题1
