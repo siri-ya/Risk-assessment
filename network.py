@@ -12,8 +12,8 @@ class mydata(Dataset):
             # 使用交叉熵损失函数时需要类型为float
             self.label = torch.from_numpy(np.load('./data/y_'+choice+'.npy')).float()
         else:
-            self.data = data
-            self.label = label
+            self.data = torch.from_numpy(data).float()
+            self.label = torch.from_numpy(label).float()
 
     def __len__(self):
         return len(self.data)
